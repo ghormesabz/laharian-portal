@@ -1,0 +1,369 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Laharian Fan Portal</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=VT323&display=swap" rel="stylesheet">
+<style>
+  /* ---------- THEME: change colours here ---------- */
+  :root {
+    --ink: #2b1d0e;          /* outlines + text */
+    --paper: #eef3cf;        /* window inside */
+    --leaf: #5f9a2f;
+    --leaf-dark: #2f5a17;
+    --leaf-light: #556b33;
+    --wood-dark: #4a2f17;
+    --bark: url(img/px/tree_bark.png);
+    /* how much scene-1.png is scaled up to cover the screen (it is 372 x 288) */
+    --s: max(calc(100vw / 372), calc(100dvh / 288));
+  }
+
+  *, *::before, *::after { box-sizing: border-box; }
+
+  html { image-rendering: pixelated; }   /* keep every image chunky, never blurry */
+
+  body {
+    margin: 0;
+    min-height: 100dvh;
+    background: #000;
+    color: var(--ink);
+    font-family: "VT323", ui-monospace, monospace;
+    font-size: 22px;
+    line-height: 1.15;
+  }
+
+  /* ---------- BACKGROUND SCENE ---------- */
+  .scene {
+    position: fixed; inset: 0;
+    background: #000 url(img/scene-1.png) center / cover no-repeat;
+  }
+
+  /* ---------- "AROUND THE EARTH" ASSETS (hidden until unlocked) ---------- */
+  .reveal {
+    opacity: 0; visibility: hidden;
+    transition: opacity 1.2s .5s, visibility 1.2s .5s;
+  }
+  .unlocked .reveal { opacity: 1; visibility: visible; }
+
+  /* a ring centred on the earth that slowly spins; leaves sit on its edge */
+  .orbit {
+    position: fixed;
+    left: 50%; top: 48.5%;              /* earth centre inside scene-1.png */
+    width: calc(var(--s) * 190);        /* 190 scene-pixels across = just outside the earth */
+    aspect-ratio: 1;
+    translate: -50% -50%;
+    animation: spin 60s linear infinite;
+  }
+  .orbit img { position: absolute; width: 48px; }
+
+  .meteor {
+    position: fixed; top: -64px; left: 100%;
+    width: 64px; height: 64px;
+    scale: 2; rotate: 45deg;
+    background: url(img/Meteor/Meteor1.png) center / contain no-repeat;
+    animation: fall 7s linear infinite, burn .3s infinite;
+  }
+
+  /* ducks in a row, walking along the bridge */
+  .lane {
+    position: fixed; left: 0; right: 0; bottom: 0; z-index: 2;
+    height: 170px;
+    overflow: hidden;
+    pointer-events: none;
+    background: url(img/px/bridge.png) left bottom / auto 52px repeat-x;
+  }
+  .ducks {
+    position: absolute; bottom: 40px; left: 0;
+    display: flex; align-items: flex-end; gap: 6px;
+    translate: -100% 0;                 /* parked off-screen left until unlocked */
+  }
+  .unlocked .ducks { animation: walk 24s linear 1s infinite; }
+  .ducks img {
+    width: 40px;
+    rotate: -6deg;
+    transform-origin: bottom center;
+    animation: waddle .5s steps(1) infinite;
+  }
+  .ducks img:nth-child(odd) { animation-delay: -.25s; }
+  .ducks .mama { width: 120px; margin-left: 18px; }
+
+  /* ---------- LAYOUT ---------- */
+  main {
+    position: relative; z-index: 3;     /* above the duck lane */
+    min-height: 100dvh;
+    display: grid; place-items: center;
+    padding: 48px 16px;
+    overflow-x: clip;                   /* smeared leaves may poke past the edges */
+  }
+  .gate, .launch, .proposal { grid-area: 1 / 1; }   /* all three share the same spot */
+
+  /* ---------- WINDOW: bark frame, paper inside ---------- */
+  .window {
+    position: relative;
+    width: min(100%, 24rem);
+    padding: 12px;                                    /* frame thickness */
+    background: var(--bark) 0 0 / 128px 76px;
+    box-shadow:
+      0 0 0 4px var(--ink),                           /* pixel outline */
+      10px 10px 0 4px rgb(0 0 0 / .45);               /* hard drop shadow */
+    transition: opacity .6s, visibility .6s, scale .6s;
+  }
+  .window-inner {
+    position: relative;
+    padding: 0 16px 18px;
+    background: var(--paper);
+    box-shadow: inset 4px 4px 0 rgb(0 0 0 / .2), inset -4px -4px 0 rgb(255 255 255 / .6);
+  }
+  .titlebar {
+    margin: 0 -16px 16px;
+    padding: 10px 16px;
+    font-family: "Press Start 2P", monospace;
+    font-size: 11px; letter-spacing: .1em;
+    color: var(--paper);
+    text-shadow: 2px 2px 0 var(--leaf-dark);
+    background: repeating-linear-gradient(var(--leaf) 0 4px, var(--leaf-dark) 4px 6px);
+    border-bottom: 4px solid var(--ink);
+  }
+
+  /* plant cut-outs stuck all over the window */
+  .smear { position: absolute; pointer-events: none; z-index: 2; }
+  .stain { position: absolute; pointer-events: none; mix-blend-mode: multiply; opacity: .3; }
+
+  /* the riddle stickers */
+  .peapod { position: absolute; z-index: 3; width: 96px; left: -34px; bottom: -40px; rotate: -18deg; }
+  .yinyang {
+    position: absolute; z-index: 3; width: 72px; right: -26px; top: -30px;
+    background: #fff; border-radius: 50%;
+    box-shadow: 0 0 0 4px var(--ink);
+    animation: spin 8s steps(16) infinite;
+  }
+
+  .gate label { display: block; margin-bottom: 8px; font-size: 26px; }
+  .gate input {
+    width: 100%;
+    margin: 4px 0 22px;
+    padding: 8px 10px;
+    font: inherit; font-size: 26px;
+    color: var(--ink);
+    background: #fbfde9;
+    border: 0; outline: none;
+    box-shadow: inset 4px 4px 0 rgb(0 0 0 / .25), 0 0 0 4px var(--ink);
+  }
+  .gate input:focus {
+    box-shadow: inset 4px 4px 0 rgb(0 0 0 / .25), 0 0 0 4px var(--leaf-dark), 0 0 0 8px var(--leaf-light);
+  }
+  .gate .row { display: flex; justify-content: flex-end; }
+  .msg { margin: 14px 0 0; min-height: 1.2em; color: var(--leaf-dark); }
+  .gate.wrong { animation: shake .4s; }
+  .gate.wrong .msg { color: #a1281c; }
+
+  /* ---------- BUTTONS: chunky, raised, press down when tapped ---------- */
+  .btn {
+    position: relative;
+    display: inline-block;
+    padding: 14px 20px;
+    font-family: "Press Start 2P", monospace;
+    font-size: 12px;
+    color: #fffbe0;
+    text-decoration: none;
+    text-shadow: 2px 2px 0 var(--wood-dark);
+    border: 0; cursor: pointer;
+    background:
+      linear-gradient(rgb(255 255 255 / .35), rgb(255 255 255 / 0) 45%, rgb(0 0 0 / .3)),
+      var(--bark) center / 96px 57px;
+    box-shadow:
+      0 0 0 4px var(--ink),                          /* outline */
+      inset 4px 4px 0 rgb(255 255 255 / .35),        /* top-left bevel */
+      inset -4px -4px 0 rgb(0 0 0 / .35),            /* bottom-right bevel */
+      0 8px 0 4px var(--ink);                        /* the "thickness" under the button */
+    transition: translate .05s, box-shadow .05s;
+  }
+  .btn:active {
+    translate: 0 6px;
+    box-shadow:
+      0 0 0 4px var(--ink),
+      inset 4px 4px 0 rgb(0 0 0 / .3),
+      0 2px 0 4px var(--ink);
+  }
+  /* a leaf sprouting off the corner */
+  .btn::after {
+    content: "";
+    position: absolute; right: -14px; top: -20px;
+    width: 24px; height: 40px;
+    background: url(img/px/leaf_05.png) center / contain no-repeat;
+    rotate: 35deg;
+  }
+  .btn-leaf {
+    text-shadow: 2px 2px 0 var(--leaf-dark);
+    background:
+      linear-gradient(rgb(255 255 255 / .4), rgb(255 255 255 / 0) 45%, rgb(0 0 0 / .3)),
+      var(--leaf);
+  }
+
+  /* ---------- AFTER UNLOCK: gate out, button in; button opens the card ---------- */
+  .unlocked .gate { opacity: 0; visibility: hidden; scale: 1.1; }
+
+  .launch { opacity: 0; visibility: hidden; transition: opacity .6s, visibility .6s; }
+  .unlocked .launch { opacity: 1; visibility: visible; transition-delay: .6s; }
+  .unlocked.open .launch { opacity: 0; visibility: hidden; transition-delay: 0s; }
+
+  /* ---------- PROPOSAL CARD ---------- */
+  .proposal { opacity: 0; visibility: hidden; scale: .9; }
+  .unlocked.open .proposal { opacity: 1; visibility: visible; scale: 1; }
+
+  .proposal p { margin: 0 0 14px; }
+  .proposal dl {
+    display: grid; grid-template-columns: min-content 1fr; gap: 8px 14px;   /* labels wrap instead of squashing the values */
+    margin: 0 0 22px;
+  }
+  .proposal dt {
+    font-family: "Press Start 2P", monospace; font-size: 9px;
+    padding-top: 6px;
+    color: var(--leaf-dark);
+  }
+  .proposal dd { margin: 0; font-size: 24px; }
+  .actions { display: flex; flex-wrap: wrap; align-items: center; gap: 5px; }
+  .back {
+    display: block; margin: 18px 0 0 auto;
+    font: inherit; font-size: 18px;
+    color: var(--leaf-dark); background: none; border: 0; text-decoration: underline; cursor: pointer;
+  }
+
+  /* ---------- ANIMATIONS ---------- */
+  @keyframes spin   { to { rotate: 360deg; } }
+  @keyframes walk   { from { translate: -100% 0; } to { translate: 100vw 0; } }
+  @keyframes waddle { 50% { rotate: 6deg; translate: 0 -3px; } }
+  @keyframes burn {
+    0%   { background-image: url(img/Meteor/Meteor1.png); }
+    33%  { background-image: url(img/Meteor/Meteor2.png); }
+    66%  { background-image: url(img/Meteor/Meteor3.png); }
+  }
+  @keyframes fall {
+    0%        { translate: 0 0; }
+    35%, 100% { translate: -150vw 100vh; }
+  }
+  @keyframes shake {
+    0%, 100% { translate: 0; }
+    20%, 60% { translate: -8px; }
+    40%, 80% { translate: 8px; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    * { animation: none !important; transition: none !important; }
+    .ducks { translate: 8vw 0; }        /* no walking, so park them on the bridge where they can be seen */
+  }
+
+  /* ---------- PHONES: shrink the windows so the card fits on screen ---------- */
+  @media (max-width: 480px) {
+    .window { padding: 8px; }
+    .window-inner { padding: 0 12px 14px; }
+    .titlebar { margin: 0 -12px 12px; }
+    .proposal { font-size: 19px; }
+    .proposal dd { font-size: 20px; }
+    .proposal dl { margin-bottom: 18px; }
+  }
+</style>
+</head>
+<body>
+
+<div class="scene"></div>
+
+<!-- around the earth: these fade in after the right answer -->
+<div class="orbit reveal" aria-hidden="true">
+  <img src="img/px/leaf_02.png" alt="" style="left: 45%; top: -24px;">
+  <img src="img/px/flower_yellow.png" alt="" style="right: -24px; top: 45%;">
+  <img src="img/px/lion.png" alt="" style="left: 45%; bottom: -24px;">
+  <img src="img/px/leaf_04.png" alt="" style="left: -24px; top: 45%;">
+  <img src="img/px/flower_yellow.png" alt="" style="left: 8%; top: 8%; width: 32px;">
+  <img src="img/px/elephant.png" alt="" style="right: 8%; bottom: 8%; width: 86px;">
+</div>
+<div class="meteor reveal" aria-hidden="true"></div>
+<div class="lane reveal" aria-hidden="true">
+  <div class="ducks">
+    <img src="img/px/duck.png" alt="">
+    <img src="img/px/duck.png" alt="">
+    <img src="img/px/duck.png" alt="">
+    <img src="img/px/duck.png" alt="">
+    <img src="img/px/duck.png" alt="">
+    <img src="img/px/duck.png" alt="">
+    <img class="mama" src="img/px/duck.png" alt="">
+  </div>
+</div>
+
+<main>
+
+  <!-- 1. the gate -->
+  <form class="window gate" id="gate">
+    <img class="smear" src="img/px/tree_stem_01.png" alt="" style="left: -70px; top: -65px; width: 150px; rotate: -50deg;">
+    <img class="smear" src="img/px/leaf_06.png" alt="" style="right: -30px; bottom: 30px; width: 80px; rotate: 70deg;">
+    <img class="smear" src="img/px/leaf_05.png" alt="" style="left: -22px; top: 40%; width: 32px; rotate: -30deg;">
+    <img class="peapod" src="img/px/peapod.png" alt="">
+    <img class="yinyang" src="img/px/yinyang.png" alt="">
+
+    <div class="window-inner">
+      <img class="stain" src="img/px/leaf_02.png" alt="" style="right: 10px; bottom: 6px; width: 120px;">
+      <p class="titlebar">SECURITY QUESTION</p>
+      <label for="answer">How many yangs belong in a pod?</label>
+      <input id="answer" autocomplete="off" autocapitalize="off" spellcheck="false">
+      <div class="row"><button class="btn">Unlock</button></div>
+      <p class="msg" id="msg" aria-live="polite"></p>
+    </div>
+  </form>
+
+  <!-- 2. after unlock: the button that opens the proposal -->
+  <div class="launch">
+    <button class="btn btn-leaf" id="open" type="button">Proposition from Mahan</button>
+  </div>
+
+  <!-- 3. the proposal -->
+  <section class="window proposal">
+    <img class="smear" src="img/px/leaf_04.png" alt="" style="left: -20px; top: -28px; width: 40px; rotate: -40deg;">
+    <img class="smear" src="img/px/flower_yellow.png" alt="" style="right: -18px; top: -18px; width: 48px;">
+    <img class="smear" src="img/px/leaf_02.png" alt="" style="right: -26px; bottom: -22px; width: 64px; rotate: 20deg;">
+
+    <div class="window-inner">
+      <p class="titlebar">DATE PROPOSITION</p>
+      <p>Due to the great amount of interest shown, Mahan is proposing to take you on a date.</p>
+      <dl>
+        <dt>THEME</dt>      <dd>Evening Adventure</dd>
+        <dt>LOCATION</dt>   <dd>Perth CBD</dd>
+        <dt>TIME</dt>       <dd>6:30pm – Late</dd>
+        <dt>ACTIVITIES</dt> <dd>Dinner, Wine, and Comedy Club</dd>
+        <dt>ADD TO CALENDAR</dt> <dd><a target="_blank" href="https://calendar.app.google/ijiR6EsHZMPfKk1z8"><img border="0" src="https://calendar.google.com/calendar/images/ext/gc_button1_en-GB.gif" alt="Google Calendar"></a></dd>
+      </dl>
+      <div class="actions">
+        <a class="btn btn-leaf" href="sms:+61402417806?&amp;body=Count%20me%20in%20for%20the%20Evening%20Adventure">RSVP</a>
+      </div>
+      <button class="back" id="back" type="button">go back</button>
+    </div>
+  </section>
+
+</main>
+
+<script>
+  const gate = document.querySelector('#gate');
+  const answer = document.querySelector('#answer');
+  const msg = document.querySelector('#msg');
+
+  gate.addEventListener('submit', (event) => {
+    event.preventDefault();                       // stop the page reloading
+    const guess = answer.value.trim().toLowerCase();
+    if (guess === '2' || guess === 'two') {
+      msg.textContent = 'Correct. Opening the pod...';
+      answer.blur();                              // drop the phone keyboard
+      document.body.classList.add('unlocked');    // CSS does the rest
+    } else {
+      msg.textContent = 'Wrong. Think yin and yang.';
+      gate.classList.add('wrong');
+    }
+  });
+  gate.addEventListener('animationend', () => gate.classList.remove('wrong'));
+
+  // the card opens and closes over the animated scene
+  document.querySelector('#open').addEventListener('click', () => document.body.classList.add('open'));
+  document.querySelector('#back').addEventListener('click', () => document.body.classList.remove('open'));
+</script>
+</body>
+</html>
